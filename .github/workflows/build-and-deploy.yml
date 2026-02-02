@@ -25,7 +25,7 @@ jobs:
         run: dotnet restore ./downpatch.csproj
 
       - name: Publish
-        run: dotnet publish ./downpatch.csproj -c Release -o ./out --no-restore
+        run: dotnet publish ./downpatch.csproj -c Release -o ./out -r linux-x64 --self-contained true /p:PublishSingleFile=false
 
       - name: Configure SSH
         shell: bash
@@ -54,6 +54,5 @@ jobs:
           set -euo pipefail
           ln -sfn "/var/www/downpatch/releases/${RELEASE}" /var/www/downpatch/current
 
-          sudo -n /bin/systemctl restart downpatch.service
-          sudo -n /bin/systemctl status downpatch.service --no-pager
+          sudo -n /usr/bin/systemctl restart downpatch.service
           EOF
