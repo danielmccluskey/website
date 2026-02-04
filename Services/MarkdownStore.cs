@@ -75,10 +75,12 @@ namespace downpatch.Services
         {
             var slug = (currentSlug ?? "").Trim('/');
 
+            string? highestWithIndex = null;
+
             while (true)
             {
                 if (HasIndex(slug))
-                    return slug;
+                    highestWithIndex = slug;
 
                 var lastSlash = slug.LastIndexOf('/');
                 if (lastSlash < 0) break;
@@ -86,7 +88,10 @@ namespace downpatch.Services
                 slug = slug[..lastSlash];
             }
 
-            return HasIndex("") ? "" : "";
+            if (highestWithIndex is null)
+                return HasIndex("") ? "" : "";
+
+            return highestWithIndex;
         }
 
         private bool HasIndex(string slug)

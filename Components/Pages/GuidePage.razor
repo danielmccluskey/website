@@ -227,17 +227,18 @@ else
 
         var (doc, _) = await Store.TryGetByRequestAsync(slug, host);
         _doc = doc;
+        var currentSlug = (_doc?.Slug ?? (slug ?? "")).Trim('/');
 
-        var normalized = (slug ?? "").Trim('/');
-        _navRootSlug = Store.GetNavRootSlug(normalized);
-        _nav = Store.BuildNavTree(_navRootSlug, normalized);
+
+        _navRootSlug = Store.GetNavRootSlug(currentSlug);
+        _nav = Store.BuildNavTree(_navRootSlug, currentSlug);
 
         _notFound = doc is null;
 
         // canonical works even for not-found
         _canonical = _notFound
-            ? BuildCanonical(ctx, slug ?? "")
-            : BuildCanonical(ctx, doc!.Slug, doc.Canonical);
+        ? BuildCanonical(ctx, slug ?? "")
+        : BuildCanonical(ctx, doc!.Slug, doc.Canonical);
 
         _pageTitleFull = $"{Title} | {Brand.SiteName}";
 
