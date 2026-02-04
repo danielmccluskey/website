@@ -2,6 +2,7 @@ using downpatch.Components;
 using downpatch.Data;
 using downpatch.Services;
 using Markdig.Renderers;
+using Microsoft.AspNetCore.HttpOverrides;
 
 namespace downpatch
 {
@@ -30,6 +31,15 @@ namespace downpatch
                 GitHubUrl = "https://github.com/downpatch",
                 ThemeColor = "#0b0f14"
             });
+
+            builder.Services.Configure<ForwardedHeadersOptions>(options =>
+            {
+                options.ForwardedHeaders =
+                    ForwardedHeaders.XForwardedFor |
+                    ForwardedHeaders.XForwardedProto;
+
+            });
+
             var app = builder.Build();
 
             // Configure the HTTP request pipeline.
@@ -39,6 +49,7 @@ namespace downpatch
                 // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
                 app.UseHsts();
             }
+            app.UseForwardedHeaders();
 
             app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
             app.UseHttpsRedirection();
