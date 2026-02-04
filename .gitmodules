@@ -1,0 +1,3 @@
+[submodule "wwwroot/Content"]
+	path = wwwroot/Content
+	url = https://github.com/downpatch/content
