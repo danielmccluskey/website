@@ -60,38 +60,40 @@ jobs:
           sudo -n /usr/bin/systemctl restart downpatch.service
           EOF
 
-      - name: Clean Releases
+      - name: Clean Releases (server)
         shell: bash
         run: |
+          set -euo pipefail
+          ssh -p "${{ secrets.SSH_PORT }}" -i ~/.ssh/id_ed25519 "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" << 'EOF'
           set -euo pipefail
 
           RELEASES_DIR="/var/www/downpatch/releases"
           CURRENT=""
-          
-          # If current doesn't exist, don't fail the script
+
           if [ -e /var/www/downpatch/current ]; then
             CURRENT="$(readlink -f /var/www/downpatch/current || true)"
           fi
-          
+
           cd "$RELEASES_DIR"
           [ "$(pwd -P)" = "$RELEASES_DIR" ] || exit 1
-          
+
           mapfile -t dirs < <(find "$RELEASES_DIR" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' | sort -nr | awk '{print $2}')
-          
+
           KEEP=4
           kept=0
-          
+
           for FULL in "${dirs[@]}"; do
-            # never delete the active release
             if [ -n "$CURRENT" ] && [ "$FULL" = "$CURRENT" ]; then
               continue
             fi
-          
+
             kept=$((kept+1))
             if [ "$kept" -gt "$KEEP" ]; then
               echo "Deleting $FULL"
               rm -rf -- "$FULL"
             fi
           done
+          EOF
+
 
 
