@@ -371,7 +371,7 @@ namespace downpatch.Services
 
             // folder base under content
             // -> /content/guide/template-game/ + raw
-            return $"/content/{cleanSlug}/{raw}".Replace("\\", "/");
+            return $"/content/guide/{cleanSlug}/{raw}".Replace("\\", "/");
         }
 
 
