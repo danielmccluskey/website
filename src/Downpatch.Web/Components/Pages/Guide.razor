@@ -1,0 +1,170 @@
+﻿@page "/guide/{**slug}"
+@using Downpatch.Web.Services
+@using Microsoft.AspNetCore.Components
+@inject MarkdownPageService Pages
+@inject IHttpContextAccessor HttpContextAccessor
+
+<PageTitle>@_pageTitle</PageTitle>
+
+<HeadContent>
+    @if (!string.IsNullOrWhiteSpace(_canonical))
+    {
+        <link rel="canonical" href="@_canonical" />
+        <meta property="og:url" content="@_canonical" />
+    }
+
+    @if (!string.IsNullOrWhiteSpace(_description))
+    {
+        <meta name="description" content="@_description" />
+        <meta property="og:description" content="@_description" />
+        <meta name="twitter:description" content="@_description" />
+    }
+
+    <meta property="og:title" content="@_pageTitle" />
+    <meta property="og:type" content="article" />
+    <meta name="twitter:title" content="@_pageTitle" />
+
+    @if (_noIndex)
+    {
+        <meta name="robots" content="noindex,nofollow" />
+    }
+</HeadContent>
+
+@if (_notFound)
+{
+    <h1>Not found</h1>
+    <p>That page doesn’t exist.</p>
+}
+else
+{
+    <a class="skip-link" href="#doc-content">Skip to content</a>
+
+    <header class="doc-hero2" aria-labelledby="doc-title">
+        <div class="doc-hero2-inner">
+            <div class="doc-hero2-meta">
+                <p class="doc-kicker">Guide</p>
+                <h1 id="doc-title" class="doc-title">@_title</h1>
+
+                @if (!string.IsNullOrWhiteSpace(_description))
+                {
+                    <p class="doc-lead">@_description</p>
+                }
+
+                <div class="doc-actions" role="navigation" aria-label="Document actions">
+                    <a class="doc-action" href="/guide">
+                        <i class="bi bi-file-earmark-text"></i>
+                        All guides
+                    </a>
+
+                    @if (!string.IsNullOrWhiteSpace(_canonical))
+                    {
+                        <a class="doc-action" href="@_canonical">
+                            <i class="bi bi-link-45deg"></i>
+                            Permalink
+                        </a>
+                    }
+
+                    @if (!string.IsNullOrWhiteSpace(_leaderboard))
+                    {
+                        <a class="doc-action" href="@_leaderboard">
+                            <i class="bi bi-trophy"></i>
+                            Leaderboard
+                        </a>
+                    }
+
+                    @if (!string.IsNullOrWhiteSpace(_discord))
+                    {
+                        <a class="doc-action" href="@_discord">
+                            <i class="bi bi-discord"></i>
+                            Discord
+                        </a>
+                    }
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="doc-shell">
+        <main id="doc-content" class="doc-content" tabindex="-1" aria-label="Document content">
+            <article class="prose doc-article">
+                @((MarkupString)_html)
+            </article>
+
+            <footer class="doc-footer">
+                <hr />
+                <p class="muted">
+                    Found an issue? Edit the markdown and submit a PR.
+                </p>
+            </footer>
+        </main>
+    </div>
+}
+
+@code {
+    [Parameter] public string? Slug { get; set; }
+
+    private bool _notFound;
+
+    private string _title = "Loading...";
+    private string _pageTitle = "Loading...";
+    private string _html = "";
+
+    private string? _description;
+    private string? _canonical;
+    private bool _noIndex;
+
+    private string? _leaderboard;
+    private string? _discord;
+
+    protected override void OnParametersSet()
+    {
+        _notFound = !Pages.TryGetRendered(Slug, out var page);
+
+        if (_notFound)
+        {
+            _title = "Not found";
+            _pageTitle = "Not found";
+            _html = "";
+            _description = null;
+            _canonical = BuildCanonical(Slug);
+            _noIndex = true;
+            _leaderboard = null;
+            _discord = null;
+            return;
+        }
+
+        _title = page.Title;
+        _pageTitle = page.Title;
+        _html = page.HtmlBody;
+
+        _canonical = BuildCanonical(Slug);
+        _noIndex = false;
+
+        var fm = page.FrontMatter;
+
+        _description = GetFm(fm, "description");
+        _leaderboard = GetFm(fm, "leaderboard");
+        _discord = GetFm(fm, "discord");
+        if (string.IsNullOrWhiteSpace(_discord))
+            _discord = GetFm(fm, "discordurl");
+
+        _noIndex = TryGetBool(fm, "noindex", false);
+    }
+
+    private string BuildCanonical(string? slug)
+    {
+        var ctx = HttpContextAccessor.HttpContext;
+        if (ctx is null) return "";
+
+        var baseUrl = $"{ctx.Request.Scheme}://{ctx.Request.Host}".TrimEnd('/');
+        var path = string.IsNullOrWhiteSpace(slug) ? "/guide" : "/guide/" + slug.Trim('/');
+
+        return baseUrl + path;
+    }
+
+    private static string? GetFm(IReadOnlyDictionary<string, string> fm, string key)
+        => fm.TryGetValue(key, out var v) && !string.IsNullOrWhiteSpace(v) ? v : null;
+
+    private static bool TryGetBool(IReadOnlyDictionary<string, string> fm, string key, bool fallback)
+        => fm.TryGetValue(key, out var v) && bool.TryParse(v, out var b) ? b : fallback;
+}
