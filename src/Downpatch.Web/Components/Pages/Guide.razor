@@ -2,6 +2,7 @@
 @using Downpatch.Web.Services
 @using Microsoft.AspNetCore.Components
 @inject MarkdownPageService Pages
+@inject NavStore Nav
 @inject IHttpContextAccessor HttpContextAccessor
 
 <PageTitle>@_pageTitle</PageTitle>
@@ -32,41 +33,47 @@
 
 @if (_notFound)
 {
-    <h1>Not found</h1>
-    <p>That page doesn’t exist.</p>
+    <div class="docs-shell">
+        <main class="docs-main">
+            <h1>Not found</h1>
+            <p>That page doesn’t exist.</p>
+        </main>
+    </div>
 }
 else
 {
     <a class="skip-link" href="#doc-content">Skip to content</a>
 
-    <header class="doc-hero2" aria-labelledby="doc-title">
-        <div class="doc-hero2-inner">
-            <div class="doc-hero2-meta">
-                <p class="doc-kicker">Guide</p>
-                <h1 id="doc-title" class="doc-title">@_title</h1>
+    <div class="docs-shell">
+        <aside class="docs-left" aria-label="Navigation">
+            <div class="docs-left-inner">
+                <div class="docs-left-title">Contents</div>
+                <SidebarNav Nodes="@_toc" CurrentPath="@_currentPath" />
+            </div>
+        </aside>
+
+        <main id="doc-content" class="docs-main" tabindex="-1" aria-label="Document content">
+            <nav class="docs-breadcrumb" aria-label="Breadcrumb">
+                <a href="/guide">Guide</a>
+                @if (!string.IsNullOrWhiteSpace(Slug))
+                {
+                    <span class="docs-breadcrumb-sep">/</span>
+                    <span>@_title</span>
+                }
+            </nav>
+
+            <header class="docs-header">
+                <h1 class="docs-h1">@_title</h1>
 
                 @if (!string.IsNullOrWhiteSpace(_description))
                 {
-                    <p class="doc-lead">@_description</p>
+                    <p class="docs-lead">@_description</p>
                 }
 
-                <div class="doc-actions" role="navigation" aria-label="Document actions">
-                    <a class="doc-action" href="/guide">
-                        <i class="bi bi-file-earmark-text"></i>
-                        All guides
-                    </a>
-
-                    @if (!string.IsNullOrWhiteSpace(_canonical))
-                    {
-                        <a class="doc-action" href="@_canonical">
-                            <i class="bi bi-link-45deg"></i>
-                            Permalink
-                        </a>
-                    }
-
+                <div class="docs-actions" role="navigation" aria-label="Document actions">
                     @if (!string.IsNullOrWhiteSpace(_leaderboard))
                     {
-                        <a class="doc-action" href="@_leaderboard">
+                        <a class="docs-action" href="@_leaderboard" rel="noopener" target="_blank">
                             <i class="bi bi-trophy"></i>
                             Leaderboard
                         </a>
@@ -74,29 +81,40 @@ else
 
                     @if (!string.IsNullOrWhiteSpace(_discord))
                     {
-                        <a class="doc-action" href="@_discord">
+                        <a class="docs-action" href="@_discord" rel="noopener" target="_blank">
                             <i class="bi bi-discord"></i>
                             Discord
                         </a>
                     }
                 </div>
+            </header>
+
+            <div class="docs-content">
+                <article class="prose">
+                    @((MarkupString)_html)
+                </article>
             </div>
-        </div>
-    </header>
 
-    <div class="doc-shell">
-        <main id="doc-content" class="doc-content" tabindex="-1" aria-label="Document content">
-            <article class="prose doc-article">
-                @((MarkupString)_html)
-            </article>
-
-            <footer class="doc-footer">
-                <hr />
-                <p class="muted">
-                    Found an issue? Edit the markdown and submit a PR.
-                </p>
+            <footer class="docs-footer">
+                <p class="muted">Found an issue? Edit the markdown and submit a PR.</p>
             </footer>
         </main>
+
+        <aside class="docs-right" aria-label="On this page">
+            <div class="docs-right-inner">
+                <div class="docs-right-title">On this page</div>
+                <nav>
+                    <ul class="docs-otp">
+                        @foreach (var h in _headings)
+                        {
+                            <li class="docs-otp-item @(h.Level == 3 ? "is-h3" : "")">
+                                <a class="docs-otp-link" href="@($"{_currentPath}#{h.Id}")" data-no-routing="true">@h.Text</a>
+                            </li>
+                        }
+                    </ul>
+                </nav>
+            </div>
+        </aside>
     </div>
 }
 
@@ -116,8 +134,20 @@ else
     private string? _leaderboard;
     private string? _discord;
 
+    private IReadOnlyList<NavNode> _toc = Array.Empty<NavNode>();
+    private string _currentPath = "/guide";
+
+    private List<Heading> _headings = new();
+
     protected override void OnParametersSet()
     {
+        _currentPath = string.IsNullOrWhiteSpace(Slug)
+     ? "/guide"
+     : "/guide/" + Slug.Trim('/');
+
+
+        _toc = Nav.GetNavForRequestSlug(Slug);
+
         _notFound = !Pages.TryGetRendered(Slug, out var page);
 
         if (_notFound)
@@ -130,6 +160,7 @@ else
             _noIndex = true;
             _leaderboard = null;
             _discord = null;
+            _headings = new();
             return;
         }
 
@@ -138,7 +169,6 @@ else
         _html = page.HtmlBody;
 
         _canonical = BuildCanonical(Slug);
-        _noIndex = false;
 
         var fm = page.FrontMatter;
 
@@ -149,6 +179,8 @@ else
             _discord = GetFm(fm, "discordurl");
 
         _noIndex = TryGetBool(fm, "noindex", false);
+
+        _headings = ExtractHeadings(_html);
     }
 
     private string BuildCanonical(string? slug)
@@ -167,4 +199,96 @@ else
 
     private static bool TryGetBool(IReadOnlyDictionary<string, string> fm, string key, bool fallback)
         => fm.TryGetValue(key, out var v) && bool.TryParse(v, out var b) ? b : fallback;
+
+    private static List<Heading> ExtractHeadings(string html)
+    {
+        var result = new List<Heading>();
+        var i = 0;
+
+        while (i < html.Length)
+        {
+            var next = FindNextHeading(html, i, out var level, out var open, out var close);
+            if (next < 0) break;
+
+            var tagEnd = html.IndexOf('>', open);
+            if (tagEnd < 0) break;
+
+            var tag = html.Substring(open, tagEnd - open + 1);
+            var inner = html.Substring(tagEnd + 1, close - tagEnd - 1);
+
+            var id = ExtractAttr(tag, "id");
+            if (!string.IsNullOrWhiteSpace(id))
+            {
+                var text = StripTags(inner).Trim();
+                if (text.Length > 0)
+                    result.Add(new Heading(level, id, text));
+            }
+
+            i = close + (level == 2 ? 5 : 5);
+        }
+
+        return result;
+
+        static int FindNextHeading(string s, int start, out int level, out int open, out int close)
+        {
+            var h2 = s.IndexOf("<h2", start, StringComparison.OrdinalIgnoreCase);
+            var h3 = s.IndexOf("<h3", start, StringComparison.OrdinalIgnoreCase);
+
+            if (h2 < 0 && h3 < 0)
+            {
+                level = 0; open = 0; close = 0;
+                return -1;
+            }
+
+            if (h3 < 0 || (h2 >= 0 && h2 < h3))
+            {
+                level = 2;
+                open = h2;
+                var endTagOpen = s.IndexOf('>', open);
+                close = endTagOpen < 0 ? -1 : s.IndexOf("</h2>", endTagOpen, StringComparison.OrdinalIgnoreCase);
+                return open;
+            }
+
+            level = 3;
+            open = h3;
+            var endTagOpen3 = s.IndexOf('>', open);
+            close = endTagOpen3 < 0 ? -1 : s.IndexOf("</h3>", endTagOpen3, StringComparison.OrdinalIgnoreCase);
+            return open;
+        }
+    }
+
+    private readonly record struct Heading(int Level, string Id, string Text);
+
+
+    private static string? ExtractAttr(string tag, string attr)
+    {
+        var key = attr + "=";
+        var p = tag.IndexOf(key, StringComparison.OrdinalIgnoreCase);
+        if (p < 0) return null;
+
+        var q = tag.IndexOf('"', p);
+        if (q < 0) return null;
+
+        var r = tag.IndexOf('"', q + 1);
+        if (r < 0) return null;
+
+        return tag.Substring(q + 1, r - q - 1);
+    }
+
+    private static string StripTags(string s)
+    {
+        Span<char> buf = s.Length <= 4096 ? stackalloc char[s.Length] : new char[s.Length];
+        var w = 0;
+        var inside = false;
+
+        for (var i = 0; i < s.Length; i++)
+        {
+            var c = s[i];
+            if (c == '<') { inside = true; continue; }
+            if (c == '>') { inside = false; continue; }
+            if (!inside) buf[w++] = c;
+        }
+
+        return new string(buf[..w]);
+    }
 }

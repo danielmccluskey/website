@@ -2,6 +2,7 @@ using Downpatch.Web.Components;
 using Downpatch.Web.Services;
 using Markdig;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.Extensions.FileProviders;
 
 namespace Downpatch.Web
 {
@@ -32,9 +33,18 @@ namespace Downpatch.Web
             {
                 var pipeline = new MarkdownPipelineBuilder()
                     .DisableHtml()
+                    .UseAutoIdentifiers(Markdig.Extensions.AutoIdentifiers.AutoIdentifierOptions.GitHub)
                     .Build();
 
                 return pipeline;
+            });
+            builder.Services.AddSingleton(sp =>
+            {
+                var env = sp.GetRequiredService<IHostEnvironment>();
+                var root = Path.GetFullPath(Path.Combine(env.ContentRootPath, "content"));
+                var nav = new Downpatch.Web.Services.NavStore(root);
+                nav.Build();
+                return nav;
             });
 
             builder.Services.AddSingleton<MarkdownPageService>();
@@ -78,7 +88,11 @@ namespace Downpatch.Web
                 });
             }
 
-
+            app.UseStaticFiles(new StaticFileOptions
+            {
+                FileProvider = new PhysicalFileProvider(Path.Combine(app.Environment.ContentRootPath, "content")),
+                RequestPath = "/content"
+            });
 
             // Configure the HTTP request pipeline.
             if (!app.Environment.IsDevelopment())
