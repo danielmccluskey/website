@@ -1,4 +1,5 @@
 using Downpatch.Web.Components;
+using Downpatch.Web.Endpoints;
 using Downpatch.Web.Services;
 using Markdig;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -109,7 +110,8 @@ namespace Downpatch.Web
 
             app.MapStaticAssets();
             app.UseStaticFiles();
-
+            app.MapRobots();
+            app.MapSitemap();
             app.MapRazorComponents<App>();
             using var scope = app.Services.CreateScope();
 
